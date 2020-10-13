@@ -5,6 +5,7 @@ library(bayesplot)
 library(rstanarm)
 library(rstan)
 library(tidyverse)
+library(car)
 
 # load datasets
 load('data.RData')
@@ -13,9 +14,18 @@ load('data.RData')
 
 # Set priors
 m1priors <- c(
-  prior(student_t(3, 0, 2.5), class = "Intercept"),
-  prior(student_t(3, 0, 2.5), class = "b")
+  prior(normal(0, 2.5), class = "Intercept"),
+  prior(normal(0, 2.5), class = "b")
 )
+
+# test for multicollinearity using Variance Inflation Factors
+vif(lm(data = test.data.model1,
+       total.interventions ~ 1 +
+         z.rank.higher +
+         z.rank.lower +
+         z.dsi.groomer1.groomer2 +
+         kin.groomers +
+         z.bystanders))
 
 # Bayesian analysis using brms
 model1 = brm(
@@ -26,13 +36,13 @@ model1 = brm(
     z.dsi.groomer1.groomer2 +
     kin.groomers +
     z.bystanders +
-    (1 + z.rank.lower + z.dsi.groomer1.groomer2 + kin.groomers||higher) +
-    (1 + z.rank.higher + z.dsi.groomer1.groomer2 + kin.groomers||lower) +
+    (1 + z.rank.lower + z.dsi.groomer1.groomer2||higher) +
+    (1 + z.rank.higher + z.dsi.groomer1.groomer2||lower) +
     offset(log(duration)),
   prior = m1priors,
   warmup = 500,
   iter = 3000,
-  cores = 10,
+  cores = 5,
   chains = 2,
   family = bernoulli(link = 'logit'),
   seed = 123
@@ -44,6 +54,17 @@ odds.model1 = exp(fixef(model1))
 
 ###### Model 2: Who intervened?
 
+# Variance Inflation Factor
+vif(lm(intervention ~ 1 +
+         z.rank.pot.intervener +
+         z.rank.diff.higher +
+         z.rank.diff.lower +
+         z.dsi.higher.intervener +
+         z.dsi.lower.intervener +
+         kin.higher.intervener +
+         kin.lower.intervener, data = test.data.model2))
+
+
 # conditional logistic regression using stan_clogit
 
 model2 = stan_clogit(
@@ -51,20 +72,20 @@ model2 = stan_clogit(
     z.rank.pot.intervener +
     z.rank.diff.higher +
     z.rank.diff.lower +
-    z.dsi.higher.intervener +
     z.dsi.lower.intervener +
+    z.dsi.higher.intervener +
     kin.higher.intervener +
     kin.lower.intervener +
     (1|pot.intervener),
   strata = gr.bout.id,
   data = test.data.model2,
-  prior = student_t(),
+  prior = normal(),
   QR = TRUE,
   algorithm = 'sampling',
   chains = 2,
   warmup = 500,
   iter = 3000,
-  cores = 10,
+  cores = 5,
   sparse = FALSE
 )
 
@@ -79,6 +100,13 @@ odds.model2 = exp(fixef(model2))
 
 ###### Model 3: which of the two groomers was chosen as target?
 
+# Variance Inflation Factor
+vif(lm(choice ~ z.rank.diff +
+         z.rank.target +
+         z.dsi.target.intervener +
+         kin.target.intervener, data = test.data.model3))
+
+
 # conditional logistic regression using stan_clogit
 model3 = stan_clogit(
   choice ~
@@ -88,12 +116,12 @@ model3 = stan_clogit(
     (1 + z.dsi.target.intervener + kin.target.intervener || target),
   strata = bout,
   data = test.data.model3,
-  prior = student_t(),
+  prior = normal(),
   QR = T,
   algorithm = 'sampling',
   chains = 2,
   iter = 3000,
-  cores = 10,
+  cores = 5,
   sparse = F
 )
 
@@ -109,9 +137,15 @@ odds.model3 = exp(fixef(model3))
 
 # set priors
 m1priors <- c(
-  prior(student_t(3, 0, 2.5), class = "Intercept"),
-  prior(student_t(3, 0, 2.5), class = "b")
+  prior(normal(0, 2.5), class = "Intercept"),
+  prior(normal(0, 2.5), class = "b")
 )
+# Variance Inflation Factor
+vif(lm(data = test.data.model41,
+       stay ~ z.rank.target * z.rank.intervener +
+         kin.target.intervener +
+         z.dsi.target.intervener))
+
 
 # Bayesian analysis using brms
 model41 = brm(
@@ -125,7 +159,7 @@ model41 = brm(
   prior = m1priors,
   warmup = 500,
   iter = 3000,
-  cores = 10,
+  cores = 5,
   chains = 2,
   family = bernoulli(link = 'logit'),
   seed = 123
@@ -139,8 +173,8 @@ odds.model41 = exp(fixef(model41))
 
 # set priors
 m1priors <- c(
-  prior(student_t(3, 0, 2.5), class = "Intercept"),
-  prior(student_t(3, 0, 2.5), class = "b")
+  prior(normal(0, 2.5), class = "Intercept"),
+  prior(normal(0, 2.5), class = "b")
 )
 
 # Bayesian analysis using brms
@@ -156,7 +190,7 @@ model42 = brm(
   warmup = 500,
   iter = 5000,
   prior = m1priors,
-  cores = 10,
+  cores = 5,
   chains = 2,
   family = categorical(refcat = 'ignored'),
   seed = 123
